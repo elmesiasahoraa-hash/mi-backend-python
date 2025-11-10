@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: mi-backend-python-1
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: gunicorn app:app

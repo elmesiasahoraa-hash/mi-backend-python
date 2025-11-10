@@ -5,5 +5,4 @@ gunicorn
 gspread
 google-auth
 flask
-Agrego flask-cors para CORS
 

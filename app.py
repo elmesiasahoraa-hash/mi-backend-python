@@ -1,39 +1,61 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # <--- Importante
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
+CORS(app)  # <--- Habilita CORS para todas las rutas
 
-# === CONFIGURAR CONEXIÓN A GOOGLE SHEETS ===
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credenciales.json", scope)
-client = gspread.authorize(creds)
+# Configurar conexión a Google Sheets
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_file("credenciales.json", scopes=SCOPES)
+gc = gspread.authorize(creds)
 
-# 🔹 Cambiá por el ID de tu hoja
-SPREADSHEET_ID = "1T4AE9sEqgvDm7gcI5CD5MOpy4LMB1aS1IbVzc_T27GQ"
+# ID de tu hoja (copialo desde la URL)
+SHEET_ID = "1T4AE9sEqgvDm7gcI5CD5MOpy4LMB1aS1IbVzc_T27GQ"
 
 @app.route("/", methods=["GET"])
 def home():
-    tipo = request.args.get("tipo", "")
+    return jsonify({"mensaje": "Servidor funcionando correctamente 🟢"})
 
-    if tipo == "syncBajarPedidos":
-        hoja = client.open_by_key(SPREADSHEET_ID).worksheet("datos")
-        data = hoja.get_all_records()
-        return jsonify({"pedidos": data})
+@app.route("/", methods=["POST"])
+def recibir_datos():
+    data = request.get_json()
 
-    elif tipo == "syncBajarCompras":
-        hoja = client.open_by_key(SPREADSHEET_ID).worksheet("compras")
-        data = hoja.get_all_records()
-        return jsonify({"compras": data})
+    if not data:
+        return jsonify({"error": "No se recibieron datos"}), 400
 
-    elif tipo == "syncBajarStock":
-        hoja = client.open_by_key(SPREADSHEET_ID).worksheet("stock_bizcocho")
-        data = hoja.get_all_records()
-        return jsonify({"stock": data})
+    tipo = data.get("tipo")
 
-    else:
-        return jsonify({"error": "Tipo no reconocido"}), 400
+    try:
+        sh = gc.open_by_key(SHEET_ID)
 
+        if tipo == "stock_bizcocho":
+            ws = sh.worksheet("stock_bizcocho")
+            stock = data.get("stock", {})
+            ws.append_row([
+                stock.get("bizcocho", ""),
+                stock.get("embuche", ""),
+                stock.get("neutro", ""),
+                stock.get("fecha", "")
+            ])
+            return jsonify({"ok": True, "mensaje": "Stock guardado"})
+
+        elif tipo == "compras":
+            ws = sh.worksheet("compras")
+            compra = data.get("compra", {})
+            ws.append_row([
+                compra.get("producto", ""),
+                compra.get("cantidad", ""),
+                compra.get("fecha", "")
+            ])
+            return jsonify({"ok": True, "mensaje": "Compra guardada"})
+
+        else:
+            return jsonify({"error": "Tipo de datos desconocido"}), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=10000)
